@@ -81,7 +81,9 @@ function compilerOptions(): typescript.CompilerOptions {
         target: typescript.ScriptTarget.ES5
     };
 
-    return env(Config.COMPILER_OPTIONS, defaultCompilerOptions, toOptions);
+    var options = env(Config.COMPILER_OPTIONS, defaultCompilerOptions, toOptions);
+    console.log('outDir:', options.outDir);
+    return options;
 }
 
 /**
@@ -133,14 +135,12 @@ function isModified(tsPath: string, jsPath: string): boolean {
  * @param {typescript.CompilerOptions} options  The Compiler Options
  */
 function compile(filename: string, options: typescript.CompilerOptions): void {
-    var host = typescript.createCompilerHost(options);
-    var program = typescript.createProgram([filename], options, host);
-    var checker = program.getTypeChecker(true);
-    var result = checker.emitFiles();
+    var program = typescript.createProgram([filename], options);
+    var result = program.emit();
+
     if (emitError()) {
-        checkErrors(program.getDiagnostics()
-            .concat(checker.getDiagnostics()
-            .concat(result.diagnostics)));
+        checkErrors(typescript.getPreEmitDiagnostics(program)
+            .concat(result.diagnostics));
     }
 }
 
@@ -154,14 +154,15 @@ function checkErrors(errors: typescript.Diagnostic[]): void {
         return;
     }
     errors.forEach((diagnostic: typescript.Diagnostic): void => {
-        var position = diagnostic.file.getLineAndCharacterFromPosition(
-            diagnostic.start);
+        var position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
         console.error(
             chalk.bgRed("" + diagnostic.code),
-            chalk.grey(`${diagnostic.file.filename}, (${position.line},${position.character})`),
+            chalk.grey(`${diagnostic.file.fileName}, (${position.line},${position.character})`),
             diagnostic.messageText);
     });
-    throw new Error("TypeScript Compilation Errors");
+
+    // Permissive due to https://github.com/borisyankov/DefinitelyTyped/issues/4249
+    //throw new Error("TypeScript Compilation Errors");
 }
 
 /**

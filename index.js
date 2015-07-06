@@ -73,7 +73,9 @@ function compilerOptions() {
         outDir: getCachePath(process.cwd()),
         target: typescript.ScriptTarget.ES5
     };
-    return env(Config.COMPILER_OPTIONS, defaultCompilerOptions, toOptions);
+    var options = env(Config.COMPILER_OPTIONS, defaultCompilerOptions, toOptions);
+    console.log('outDir:', options.outDir);
+    return options;
 }
 /**
  * Gets a value from env
@@ -122,14 +124,11 @@ function isModified(tsPath, jsPath) {
  * @param {typescript.CompilerOptions} options  The Compiler Options
  */
 function compile(filename, options) {
-    var host = typescript.createCompilerHost(options);
-    var program = typescript.createProgram([filename], options, host);
-    var checker = program.getTypeChecker(true);
-    var result = checker.emitFiles();
+    var program = typescript.createProgram([filename], options);
+    var result = program.emit();
     if (emitError()) {
-        checkErrors(program.getDiagnostics()
-            .concat(checker.getDiagnostics()
-            .concat(result.diagnostics)));
+        checkErrors(typescript.getPreEmitDiagnostics(program)
+            .concat(result.diagnostics));
     }
 }
 /**
@@ -142,10 +141,11 @@ function checkErrors(errors) {
         return;
     }
     errors.forEach(function (diagnostic) {
-        var position = diagnostic.file.getLineAndCharacterFromPosition(diagnostic.start);
-        console.error(chalk.bgRed("" + diagnostic.code), chalk.grey(diagnostic.file.filename + ", (" + position.line + "," + position.character + ")"), diagnostic.messageText);
+        var position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+        console.error(chalk.bgRed("" + diagnostic.code), chalk.grey(diagnostic.file.fileName + ", (" + position.line + "," + position.character + ")"), diagnostic.messageText);
     });
-    throw new Error("TypeScript Compilation Errors");
+    // Permissive due to https://github.com/borisyankov/DefinitelyTyped/issues/4249
+    //throw new Error("TypeScript Compilation Errors");
 }
 /**
  * Converts a string to boolean
